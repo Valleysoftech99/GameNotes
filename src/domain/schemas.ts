@@ -85,12 +85,11 @@ export const requirementSchema = z.discriminatedUnion('kind', [
 export const gameItemInputSchema = gameItemSchema.omit({ id: true })
 export const goalInputSchema = goalSchema.omit({ id: true })
 export const goalMaterialInputSchema = z.strictObject({
-  itemId: idSchema,
+  name: nameSchema,
   quantity: z.number().int().positive().safe(),
-  possessedQuantity: z.number().int().nonnegative().safe(),
 })
 export const goalMaterialsInputSchema = z.array(goalMaterialInputSchema).max(100).refine(
-  (materials) => new Set(materials.map((material) => material.itemId)).size === materials.length,
+  (materials) => new Set(materials.map((material) => material.name.normalize('NFKC').trim().replace(/\s+/gu, ' ').toLowerCase())).size === materials.length,
   'Un objetivo no puede repetir el mismo objeto.',
 )
 export type UserProfile = z.infer<typeof userProfileSchema>

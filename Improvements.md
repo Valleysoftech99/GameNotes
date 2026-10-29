@@ -1,113 +1,90 @@
-﻿EspecificaciÃ³n TÃ©cnica: RefactorizaciÃ³n de Modelos de Datos e Interfaz en la app (IntegraciÃ³n API RAWG y ReorganizaciÃ³n de Funcionalidades)
-Esta especificaciÃ³n define las modificaciones de arquitectura, refactorizaciÃ³n de interfaz de usuario e integraciÃ³n con la API de RAWG para el proyecto App. El documento estÃ¡ estructurado para ser interpretado directamente por un agente de cÃ³digo con IA o por un equipo de desarrollo.
+﻿Especificación Técnica Actualizada: Módulo de Objetivos e Ítems (Ajustes de UI/UX)
+1. Resumen de Cambios Estructurales
+Paleta de Colores Modificada:
 
-1. Objetivos y Resumen de Cambios
-Objetivo principal: Simplificar el seguimiento de objetivos/misiones en los juegos, integrar la API de RAWG para la obtenciÃ³n automÃ¡tica de metadatos y carÃ¡tulas, centralizar las herramientas de respaldo/restauraciÃ³n dentro del perfil de usuario y ampliar la vista de detalles de los juegos.
+Necesario: Violeta de alta saturación (#8A00F2).
 
-Eliminaciones: DepuraciÃ³n completa de los campos y lÃ³gica de subobjetivos, selecciÃ³n de opciones (tipos principal/secundario) y los campos "objetivo" y "tipo" dentro de los requisitos.
+Faltante: Rojo brillante (#F20000).
 
-Nuevas Funcionalidades:
+Rediseño del Layout de Ítems (Distribución Horizontal): Se reestructura el diseño interno de cada ítem/objeto. La métrica de cantidades (Necesario / Juntado / Faltante) se ubica a la izquierda y la interacción de la entrada de stock (Cantidad + Botón Agregar) se alinea hacia la derecha.
 
-Campo libre y editable por teclado objeto (ejemplo: "Juntar madera").
+Indicadores de Progreso: Se mantiene el porcentaje global del objetivo y se incorpora una barra/indicador de porcentaje parcial por objeto.
 
-Soporte de API key de RAWG configurable desde el perfil.
+Visualización Colapsable (Acordeón Autorretráctil): Por defecto, la tarjeta del ítem se muestra en Modo Completo. Se añade un control tipo toggle para que el usuario pueda contraer la información detallada y dejar visible únicamente el nombre del objeto.
 
-Vista extendida en "Mis Juegos" con informaciÃ³n tÃ©cnica y carÃ¡tulas traÃ­das desde RAWG.
+2. Estructura de Datos (Esquema del Objeto)
+TypeScript
+interface ObjectiveItem {
+  id: string;
+  name: string;
+  quantityRequired: number;
+  quantityInStock: number;
+  isCollapsed?: boolean; // Control de estado para contraer/desplegar detalles (por defecto: false)
+}
+3. Reglas de Estilos y Paleta de Colores
+Estado En Progreso (quantityInStock < quantityRequired):
 
-MigraciÃ³n de toda la lÃ³gica y UI de copia de seguridad (backup) y restauraciÃ³n al Perfil de Usuario.
+Necesario: #8A00F2 (Violeta Intenso)
 
-2. EspecificaciÃ³n TÃ©cnica Detallada
-A. RefactorizaciÃ³n de Objetivos y Requisitos
-Eliminar todos los modelos de datos anidados, subobjetivos y menÃºs desplegables de clasificaciÃ³n lÃ³gica en los formularios de seguimiento.
+Juntado: #FFFFFF (Blanco)
 
-Eliminaciones (CÃ³digo e Interfaz):
+Faltante: #F20000 (Rojo Intenso)
 
-Eliminar por completo el arreglo/array subobjetivos y su lÃ³gica asociada.
+Estado Completado (quantityInStock >= quantityRequired):
 
-Eliminar la lÃ³gica de opciones (principal) y sus componentes de selecciÃ³n.
+Necesario / Juntado / Faltante: #00FF7F o #00E676 (Verde Completado)
 
-Dentro del bloque de requisitos, eliminar los campos objetivo y tipo.
+4. Layout e Interfaz de la Tarjeta de Objeto (UI/UX)
+A. Estado Desplegado (Modo Completo - Por Defecto)
++-----------------------------------------------------------------------------------------+
+| [v] [ Nombre del Objeto ]                             [ Progreso Parcial: XX% ] [Trash] |
+| --------------------------------------------------------------------------------------- |
+|  Métricas (Izquierda)                  |  Interacción (Derecha)                         |
+|  • Necesario: XX (#8A00F2)             |  [ Campo Cantidad ]  [ Botón "Agregar" ]        |
+|  • Juntado:   XX (#FFFFFF)             |                                                |
+|  • Faltan:    XX (#F20000)             |                                                |
+| --------------------------------------------------------------------------------------- |
+|  [||||||||||||||||||||||....................] Barra de progreso parcial                 |
++-----------------------------------------------------------------------------------------+
+B. Estado Contraído (Modo Colapsado)
++-----------------------------------------------------------------------------------------+
+| [>] [ Nombre del Objeto ]                                               [Trash]         |
++-----------------------------------------------------------------------------------------+
+5. Flujo Completo Integrado para Agente de Código (Prompt Final)
+Markdown
+### REQUERIMIENTO COMPLETO DE DESARROLLO: MÓDULO DE OBJETIVOS E ÍTEMS
 
-Nuevo Campo (objeto):
+1. ESTRUCTURA DE LA PANTALLA PRINCIPAL
+- Mostrar Avatar del Usuario en la parte superior.
+- Portada del Juego posicionada inmediatamente debajo del Avatar y sobre la lista de objetivos (con fondo desenfocado CSS backdrop-filter blur).
+- Encabezado de Sección "Objetivos" acompañado de un botón iconográfico [+] para crear un nuevo objetivo.
 
-Nombre del campo: objeto (String / Texto).
+2. LISTA Y NAVEGACIÓN DE OBJETIVOS
+- Muestra los objetivos mediante tarjetas seleccionables que incluyen opción de eliminación directa [Trash].
+- Al hacer clic en un objetivo, se navega a la Vista de Detalle utilizando como título el NOMBRE DEL OBJETIVO.
 
-Comportamiento: Campo de texto directamente editable por el usuario mediante teclado.
+3. VISTA DE DETALLE DEL OBJETIVO
+- Muestra el Porcentaje Global de avance del objetivo.
+- Permite la creación y eliminación [Trash] de objetos/materiales individuales dentro del objetivo.
 
-Ejemplo de valor: "Juntar madera", "Derrotar al jefe final", "Conseguir 10 pociones".
+4. DISEÑO DE TARJETAS DE MATERIALES / ÍTEMS
+- Mapeo visual dividido en dos columnas horizontales:
+  * LADO IZQUIERDO: Métricas de cantidad.
+    - Necesario: Color #8A00F2 (mientras esté incompleto).
+    - Juntado: Color #FFFFFF.
+    - Faltante: Color #F20000 (mientras esté incompleto).
+    - Si el objeto se completa (Juntado >= Necesario), todo el bloque de texto pasa a VERDE.
+  * LADO DERECHO: Campo de entrada numérica de Cantidad + Botón "Agregar".
+- Porcentaje Parcial por Objeto: Barra de progreso e indicador numérico del % recolectado por cada ítem.
+- Funcionalidad Autorretráctil:
+  * Estado por defecto: COMPLETO (desplegado).
+  * Control interactivo (botón/flecha) para contraer la tarjeta y ocultar los controles/métrica
+## Estado de implementación: materiales en detalle
 
-B. IntegraciÃ³n con la API de RAWG (ConfiguraciÃ³n en Perfil)
-Permitir al usuario ingresar y almacenar su clave de API de RAWG desde su perfil para realizar peticiones de informaciÃ³n de videojuegos.
+- El detalle permite agregar nuevos materiales al objetivo guardado. Una transacción valida objetivo/juego, rechaza duplicados normalizados, reutiliza el objeto del catálogo o lo crea, e inicia el nuevo requisito con cantidad poseída 0.
+- Cada material muestra porcentaje y barra de progreso accesibles con rango 0–100%. En progreso se usan #8A00F2 para necesario, #FFFFFF para juntado y #F20000 para faltante; completado cambia las tres métricas a #00E676.
+- Las tarjetas de material comienzan expandidas y se pueden contraer. Contraer oculta porcentajes, barra, métricas y formulario de «Agregar», y deja nombre, control y papelera visibles. El estado vive solo en React y no se persiste.
+- En escritorio, métricas/progreso quedan a la izquierda y cantidad + «Agregar» a la derecha; en móvil se apilan.
+- Se mantienen los borrados confirmados/transaccionales, cover/avatar, RAWG, esquema y respaldos. No se agregó migración.
 
-Ajustes en el Perfil de Usuario:
-
-Campo nuevo: rawgApiKey (Almacenado de forma segura en el estado/base de datos local).
-
-Componente de UI: Campo de entrada de texto en la pantalla de ajustes de perfil donde el usuario pueda pegar, probar y guardar su token personal de la API de RAWG ([https://rawg.io/apidocs](https://rawg.io/apidocs)).
-
-Servicio de API (Client Layer):
-
-Crear un mÃ³dulo o servicio cliente (rawgService) para realizar bÃºsquedas y consultas a los endpoints de RAWG (/games y /games/{id}) autenticando con la clave guardada en el perfil.
-
-C. RelocalizaciÃ³n de Copia de Seguridad y RestauraciÃ³n
-Centralizar las funciones de exportaciÃ³n, importaciÃ³n y resguardo de datos en una sola ubicaciÃ³n lÃ³gica.
-
-MigraciÃ³n de UI:
-
-Mover todos los botones, controles y modales de "Respaldar datos" y "Restaurar datos" fuera de los menÃºs secundarios o tableros generales.
-
-Ubicarlos exclusivamente en la vista de Perfil de Usuario, dentro de un mÃ³dulo o tarjeta dedicada al almacenamiento y datos.
-
-D. InformaciÃ³n Extendida de Juegos y CarÃ¡tulas ("Mis Juegos")
-Enriquecer la secciÃ³n "Mis Juegos" con los metadatos e imÃ¡genes provenientes de RAWG.
-
-ActualizaciÃ³n del Modelo de Datos para Juegos:
-
-Extender la entidad de juego para almacenar identificadores y cachÃ© de RAWG: rawgId, coverUrl, releaseDate, genres, platforms, developers, metacriticScore y description.
-
-ActualizaciÃ³n de UI en "Mis Juegos":
-
-Mostrar la carÃ¡tula del juego (imagen obtenida de la API).
-
-Desplegar un bloque con la informaciÃ³n detallada del juego (aÃ±o de lanzamiento, gÃ©neros, desarrolladores, plataformas y puntuaciÃ³n).
-
-Incluir un mecanismo de bÃºsqueda/sincronizaciÃ³n para vincular un juego de la biblioteca del usuario con el resultado correspondiente en RAWG.
-
-3. Lista de VerificaciÃ³n (Checklist) para Agentes de CÃ³digo
-[ ] MigraciÃ³n de Base de Datos y Modelos:
-
-Eliminar atributos/columnas de subobjetivos, opciones, objetivo (en requisitos) y tipo (en requisitos).
-
-Agregar el campo objeto (TEXT) en la estructura correspondiente a los objetos/Ã­tems.
-
-Agregar los campos rawg_id, cover_url y rawg_metadata en la tabla/modelo de juegos.
-
-[ ] ActualizaciÃ³n del Perfil de Usuario:
-
-Agregar la entrada de texto para rawgApiKey en el formulario del perfil.
-
-Reubicar la interfaz grÃ¡fica y eventos de Respaldar/Restaurar datos al mÃ³dulo de perfil.
-
-[ ] Servicio de API de RAWG:
-
-Implementar las funciones de consulta HTTP hacia RAWG utilizando la API key del perfil.
-
-[ ] RefactorizaciÃ³n de Componentes de UI:
-
-Limpiar la interfaz de creaciÃ³n/ediciÃ³n removiendo selectores viejos de subobjetivos y tipos.
-
-Implementar la caja de texto editable por teclado para objeto.
-
-Actualizar la vista de la biblioteca "Mis Juegos" para renderizar la carÃ¡tula e informaciÃ³n obtenida de RAWG.
-## AclaraciÃ³n funcional de producto â€” alta de juego con ficha RAWG (2026-10-29)
-
-La bÃºsqueda de RAWG forma parte del flujo Â«Nuevo juegoÂ». La persona busca y elige una ficha con portada y datos antes de agregar el juego a su biblioteca. La ficha queda visible en Â«Mis juegosÂ» y, desde esa tarjeta, se entra al espacio del juego para crear listas y anotaciones. No se debe presentar la bÃºsqueda solo como una herramienta separada en la biblioteca. El alta manual sigue disponible si no hay clave o si la persona no quiere vincular RAWG. La selecciÃ³n no sobrescribe el nombre local que la persona edite y las actualizaciones conservan ese nombre.
-
-## AclaraciÃ³n de automatizaciÃ³n de bÃºsqueda (2026-10-29)
-
-En Â«Nuevo juegoÂ», RAWG consulta automÃ¡ticamente el nombre escrito despuÃ©s de una pausa breve y muestra coincidencias con carÃ¡tula. La persona elige la ficha correcta; no se vincula automÃ¡ticamente el primer resultado porque pueden existir distintas ediciones/plataformas. El nombre y la clave se envÃ­an al proveedor cuando se escribe y se pausa, por lo que el formulario debe avisar de esta consulta. La carga manual sigue como alternativa si falta la clave o no hay coincidencias.
-
-## Ajuste funcional: varios objetos por objetivo y faltantes (2026-10-29)`r`n`r`nSe actualizó el comportamiento en la sección «Regla actualizada de objetos en objetivos»: los materiales son datos propios de cada objetivo, se capturan al crearlo y la lista queda fija después de guardar.`r`n`r`n## Regla actualizada de objetos en objetivos (2026-10-29)
-
-La lista de objetos se crea junto con el objetivo y queda fija tras guardarlo. En el alta inicial se pueden incluir varios objetos, cada uno con `cantidad_necesaria` positiva y `cantidad_poseida` no negativa; el faltante se calcula automÃ¡ticamente como `max(0, cantidad_necesaria - cantidad_poseida)`. La ediciÃ³n posterior solo permite modificar los metadatos del objetivo. No existe acciÃ³n ni endpoint para agregar o editar objetos/condiciones despuÃ©s de crear el objetivo. IndexedDB v5 inicializa cantidades poseÃ­das antiguas desde stock y el respaldo v3 convierte respaldos v1/v2.
-
+Criterios verificados: `npm run typecheck` y `npm run build` pasan. No se probó la interacción manual en navegador ni IndexedDB real.

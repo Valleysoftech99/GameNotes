@@ -4,6 +4,7 @@ import {
   gameItemInputSchema,
   gameItemSchema,
   goalInputSchema,
+  goalMaterialInputSchema,
   goalMaterialsInputSchema,
   goalSchema,
   itemRequirementSchema,
@@ -135,18 +136,27 @@ export async function createGoalWithMaterials(input: unknown, materialInput: unk
   const gameId = goalFields.gameId
   const goal = goalSchema.safeParse({ ...goalFields, id: goalId })
   if (!goal.success) throw validationError('objetivo')
-  const requirements = parsedMaterials.data.map((material) => itemRequirementSchema.parse({
-    id: crypto.randomUUID(), gameId, goalId, kind: 'item', ...material, note: '',
-  }))
-
   try {
     return await db.transaction('rw', db.games, db.goals, db.items, db.requirements, async () => {
       await requireGame(gameId)
-      for (const material of parsedMaterials.data) {
-        const rawItem = await db.items.get(material.itemId)
-        if (!rawItem) throw integrityError()
+      const knownItems = await db.items.where('gameId').equals(gameId).toArray()
+      const itemsByName = new Map(knownItems.map((rawItem) => {
         const item = readItemRecord(rawItem)
-        if (item.gameId !== gameId) throw integrityError()
+        return [normalizeItemName(item.name), item] as const
+      }))
+      const requirements: Extract<Requirement, { kind: 'item' }>[] = []
+      for (const material of parsedMaterials.data) {
+        const normalizedName = normalizeItemName(material.name)
+        let item = itemsByName.get(normalizedName)
+        if (!item) {
+          item = gameItemSchema.parse({ id: crypto.randomUUID(), gameId, name: material.name.trim(), stock: 0, locations: [], note: '' })
+          await db.items.add(item)
+          itemsByName.set(normalizedName, item)
+        }
+        requirements.push(itemRequirementSchema.parse({
+          id: crypto.randomUUID(), gameId, goalId, kind: 'item', itemId: item.id,
+          quantity: material.quantity, possessedQuantity: 0, note: '',
+        }))
       }
       await db.goals.add(goal.data)
       if (requirements.length) await db.requirements.bulkAdd(requirements)
@@ -157,6 +167,146 @@ export async function createGoalWithMaterials(input: unknown, materialInput: unk
     throw storageError('objetivo')
   }
 }
+
+/** Increments only the possessed count of an existing material requirement. */
+export async function addPossessedQuantity(requirementId: unknown, amount: unknown): Promise<void> {
+  const parsedId = editIdSchema.safeParse(requirementId)
+  const parsedAmount = z.number().int().positive().safe().safeParse(amount)
+  if (!parsedId.success || !parsedAmount.success) throw new RepositoryError('INVALID_QUANTITY', 'Ingresá una cantidad válida para lo que juntaste.')
+  try {
+    await db.transaction('rw', db.goals, db.requirements, async () => {
+      const raw = await db.requirements.get(parsedId.data)
+      if (!raw) throw integrityError()
+      const requirement = readRequirementRecord(raw)
+      if (requirement.kind !== 'item') throw integrityError()
+      const rawGoal = await db.goals.get(requirement.goalId)
+      if (!rawGoal || readGoalRecord(rawGoal).gameId !== requirement.gameId) throw integrityError()
+      const possessedQuantity = requirement.possessedQuantity + parsedAmount.data
+      if (!Number.isSafeInteger(possessedQuantity)) throw new RepositoryError('INVALID_QUANTITY', 'La cantidad supera el límite permitido.')
+      await db.requirements.where('id').equals(requirement.id).modify((row) => {
+        if (row.kind === 'item') row.possessedQuantity = possessedQuantity
+      })
+    })
+  } catch (error) {
+    if (error instanceof RepositoryError || error instanceof InvalidLocalRecordError) throw error
+    throw storageError('cantidad recolectada')
+  }
+}
+
+/** Deletes one goal and every requirement attached to it, preserving shared catalog items. */
+export async function deleteGoal(gameId: unknown, goalId: unknown): Promise<void> {
+  const parsedGameId = editIdSchema.safeParse(gameId)
+  const parsedGoalId = editIdSchema.safeParse(goalId)
+  if (!parsedGameId.success || !parsedGoalId.success) throw integrityError()
+  try {
+    await db.transaction('rw', db.games, db.goals, db.items, db.requirements, async () => {
+      await requireGame(parsedGameId.data)
+      const rawGoal = await db.goals.get(parsedGoalId.data)
+      if (!rawGoal) throw integrityError()
+      const goal = readGoalRecord(rawGoal)
+      if (goal.gameId !== parsedGameId.data) throw integrityError()
+      const rawRequirements = await db.requirements.where('goalId').equals(goal.id).toArray()
+      const requirementIds: string[] = []
+      for (const raw of rawRequirements) {
+        const requirement = readRequirementRecord(raw)
+        if (requirement.gameId !== goal.gameId || requirement.goalId !== goal.id) throw integrityError()
+        if (requirement.kind === 'item') {
+          const rawItem = await db.items.get(requirement.itemId)
+          if (!rawItem || readItemRecord(rawItem).gameId !== goal.gameId) throw integrityError()
+        }
+        requirementIds.push(requirement.id)
+      }
+      if (requirementIds.length) await db.requirements.bulkDelete(requirementIds)
+      await db.goals.delete(goal.id)
+    })
+  } catch (error) {
+    if (error instanceof RepositoryError || error instanceof InvalidLocalRecordError) throw error
+    throw storageError('objetivo')
+  }
+}
+
+/** Removes one material requirement from its goal without deleting the shared catalog object. */
+export async function deleteGoalMaterial(gameId: unknown, goalId: unknown, requirementId: unknown): Promise<void> {
+  const parsedGameId = editIdSchema.safeParse(gameId)
+  const parsedGoalId = editIdSchema.safeParse(goalId)
+  const parsedRequirementId = editIdSchema.safeParse(requirementId)
+  if (!parsedGameId.success || !parsedGoalId.success || !parsedRequirementId.success) throw integrityError()
+  try {
+    await db.transaction('rw', db.games, db.goals, db.items, db.requirements, async () => {
+      await requireGame(parsedGameId.data)
+      const rawGoal = await db.goals.get(parsedGoalId.data)
+      if (!rawGoal) throw integrityError()
+      const goal = readGoalRecord(rawGoal)
+      if (goal.gameId !== parsedGameId.data) throw integrityError()
+      const rawRequirement = await db.requirements.get(parsedRequirementId.data)
+      if (!rawRequirement) throw integrityError()
+      const requirement = readRequirementRecord(rawRequirement)
+      if (requirement.kind !== 'item' || requirement.gameId !== goal.gameId || requirement.goalId !== goal.id) throw integrityError()
+      const rawItem = await db.items.get(requirement.itemId)
+      if (!rawItem || readItemRecord(rawItem).gameId !== goal.gameId) throw integrityError()
+      await db.requirements.delete(requirement.id)
+    })
+  } catch (error) {
+    if (error instanceof RepositoryError || error instanceof InvalidLocalRecordError) throw error
+    throw storageError('material del objetivo')
+  }
+}
+
+/** Adds one fixed material row to an existing goal, reusing the game's shared catalog item when possible. */
+export async function addMaterialToGoal(gameId: unknown, goalId: unknown, materialInput: unknown): Promise<Extract<Requirement, { kind: 'item' }>> {
+  const parsedGameId = editIdSchema.safeParse(gameId)
+  const parsedGoalId = editIdSchema.safeParse(goalId)
+  const parsedMaterial = goalMaterialInputSchema.safeParse(materialInput)
+  if (!parsedGameId.success || !parsedGoalId.success || !parsedMaterial.success) {
+    throw new RepositoryError('INVALID_MATERIALS', 'Revisá el nombre y la cantidad necesaria del material.')
+  }
+  const normalizedName = normalizeItemName(parsedMaterial.data.name)
+  try {
+    return await db.transaction('rw', db.games, db.goals, db.items, db.requirements, async () => {
+      await requireGame(parsedGameId.data)
+      const rawGoal = await db.goals.get(parsedGoalId.data)
+      if (!rawGoal) throw integrityError()
+      const goal = readGoalRecord(rawGoal)
+      if (goal.gameId !== parsedGameId.data) throw integrityError()
+
+      const rawItems = await db.items.where('gameId').equals(goal.gameId).toArray()
+      const itemsById = new Map<string, GameItem>()
+      const itemsByName = new Map<string, GameItem>()
+      for (const rawItem of rawItems) {
+        const item = readItemRecord(rawItem)
+        itemsById.set(item.id, item)
+        itemsByName.set(normalizeItemName(item.name), item)
+      }
+      const existingRows = await db.requirements.where('goalId').equals(goal.id).toArray()
+      for (const rawRequirement of existingRows) {
+        const requirement = readRequirementRecord(rawRequirement)
+        if (requirement.goalId !== goal.id || requirement.gameId !== goal.gameId) throw integrityError()
+        if (requirement.kind !== 'item') continue
+        const item = itemsById.get(requirement.itemId)
+        if (!item) throw integrityError()
+        if (normalizeItemName(item.name) === normalizedName) {
+          throw new RepositoryError('DUPLICATE_GOAL_MATERIAL', 'Este material ya está agregado a este objetivo.')
+        }
+      }
+
+      let item = itemsByName.get(normalizedName)
+      if (!item) {
+        item = gameItemSchema.parse({ id: crypto.randomUUID(), gameId: goal.gameId, name: parsedMaterial.data.name.trim(), stock: 0, locations: [], note: '' })
+        await db.items.add(item)
+      }
+      const requirement = itemRequirementSchema.parse({
+        id: crypto.randomUUID(), gameId: goal.gameId, goalId: goal.id, kind: 'item', itemId: item.id,
+        quantity: parsedMaterial.data.quantity, possessedQuantity: 0, note: '',
+      })
+      await db.requirements.add(requirement)
+      return requirement
+    })
+  } catch (error) {
+    if (error instanceof RepositoryError || error instanceof InvalidLocalRecordError) throw error
+    throw storageError('material del objetivo')
+  }
+}
+
 export async function listGameContent(gameId: string): Promise<{
   items: GameItem[]
   goals: Goal[]

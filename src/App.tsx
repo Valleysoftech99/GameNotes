@@ -161,7 +161,7 @@ export default function App() {
       ) : screen === 'gameForm' ? (
         <GameForm game={editingGame} rawgApiKey={profile?.rawgApiKey} onSubmit={handleGameSubmit} onCancel={() => { setError(''); setScreen('games') }} error={error} />
       ) : screen === 'workspace' && selectedGame ? (
-        <GameWorkspace game={selectedGame} onBack={() => setScreen('games')} />
+        <GameWorkspace game={selectedGame} avatar={profile?.avatar} onBack={() => setScreen('games')} />
       ) : (
         <GamesPage
           profile={profile}

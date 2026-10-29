@@ -168,10 +168,41 @@ Secuencia: **7 (decisiones) → 8 (datos/migración) → 9 (perfil/backups) → 
 ## Ajuste funcional posterior a Fase 12 — materiales dentro de cada objetivo (2026-10-29)
 
 - Cada objetivo admite varios objetos; el esquema ya modela varios requisitos `item` por `goalId` y no requiere migración.
-- No existe panel de requisitos ni acción para agregar/editar materiales o condiciones después de crear el objetivo. La edición posterior se limita a los datos del objetivo.
+- La interfaz no ofrece una sección de condiciones; la especificación posterior del módulo unificado las eliminó. Las filas históricas se conservan y no intervienen en el progreso actual.
 - Cada material del objetivo guarda cantidades poseída y necesaria; se muestra su faltante por renglón: `max(necesario - poseída, 0)`. Ejemplo: 100 poseídas, 200 necesarias, faltan 100.
-- Cada objetivo registra su lista fija de objetos durante la creación, con cantidad necesaria y cantidad poseída. El faltante se calcula por renglón y el agregado suma esos faltantes.
-- Los objetos de un objetivo no se pueden agregar ni editar después de guardarlo. La edición posterior se limita a los datos del objetivo.
+- La creación registra la lista inicial de objetos con su cantidad necesaria; la iteración vigente permite añadir o quitar materiales individualmente desde el detalle. Los objetos nuevos empiezan con cantidad poseída 0 y el detalle la incrementa por requisito para calcular el faltante por renglón.
+- La lista inicial queda fija al guardar, pero la iteración posterior permite agregar o quitar materiales desde el detalle. No se permite editar la cantidad necesaria ya guardada; el detalle sí incrementa la cantidad poseída.
 - La migración IndexedDB v5 inicializa `cantidad_poseida` desde el stock existente, y los respaldos v3 conservan ese dato y convierten respaldos v1/v2.
 - Typecheck y build pasan. No se recorrió la interfaz en browser ni se probaron registros en IndexedDB real.
+
+## Iteración intermedia del módulo Objetivos y Gestión Activa — sustituida
+
+La interfaz de dos modos descrita aquí fue reemplazada por la siguiente iteración de lista y detalle.
+
+- El workspace de cada juego tiene dos modos: **Modo creación** y **Modo activo**. Se quitaron las pestañas separadas de objetivos, objetos y faltantes.
+- Modo creación crea un objetivo con título, descripción y lista fija de materiales. Cada renglón pide nombre y cantidad necesaria; el stock inicial no se captura aquí. Un objeto ya conocido en el juego se reutiliza por nombre normalizado; si no existe, se crea en el catálogo local dentro de la misma transacción. No se permite repetir el mismo objeto en un objetivo.
+- Modo activo muestra objetivos, progreso y faltantes por material. «Agregar lo que juntaste» incrementa únicamente `possessedQuantity` del requisito seleccionado y valida el cambio en una transacción. No permite crear, editar ni eliminar objetivos/materiales.
+- La completitud se deriva cuando todos los materiales del objetivo alcanzan la cantidad requerida. El estado almacenado `active | paused` se conserva; objetivos legacy pausados siguen mostrándose pausados. No se requiere migración.
+- La UI ya no incluye condiciones. Las filas de condición legacy se preservan, pero no se muestran ni influyen en el progreso de esta interfaz.
+- El perfil y la carátula del juego aparecen antes del módulo; la imagen se desenfoca con una capa de contraste y tiene fondo de reemplazo cuando falta o falla.
+- Comprobaciones ejecutadas: `npm run typecheck` y `npm run build` pasan. No se recorrió la UI en navegador ni se verificó una sesión IndexedDB real.
+
+## Nueva iteración del módulo Objetivos — lista y detalle implementados
+
+- La pantalla principal lista objetivos seleccionables y usa un botón icono «+» accesible para abrir el formulario de creación multi-material.
+- Seleccionar un objetivo abre una vista de detalle titulada con su nombre y con acción para regresar a la lista.
+- La lista permite eliminar un objetivo con confirmación que explica que también se quitarán sus materiales, cantidades y progreso. El borrado validado y transaccional elimina objetivo y requisitos asociados; conserva los objetos del catálogo.
+- El detalle permite eliminar cada material en cualquier estado con confirmación. El borrado validado comprueba juego, objetivo, requisito y objeto; elimina solo el requisito de ese objetivo y conserva el objeto compartido y sus usos en otros objetivos.
+- Los materiales en progreso muestran necesario en violeta, juntado en blanco y faltante en rojo. Cuando `possessedQuantity >= quantity`, los tres valores se muestran verdes. La acción de acumulación se llama «Agregar» y mantiene entrada numérica.
+- Se conservan avatar, carátula RAWG con blur/fallback, modelo persistido, estado legacy `active | paused`, y formatos de respaldo. No se agregó migración.
+- `npm run typecheck` y `npm run build` pasan; la UI no se validó manualmente en navegador ni con IndexedDB real.
+
+## Refinamiento final de materiales en el detalle — implementado
+
+- El detalle permite agregar materiales tras guardar el objetivo. El repositorio valida el juego y objetivo dentro de una transacción, reutiliza el objeto del catálogo por nombre normalizado o lo crea, inicia `possessedQuantity` en cero y rechaza nombres duplicados en ese objetivo. Otros objetivos no cambian.
+- Cada tarjeta de material inicia expandida y puede contraerse. El estado de acordeón se mantiene solo en React por `requirementId`; no se añade a IndexedDB ni a respaldos.
+- Cada material muestra porcentaje propio y barra accesible, limitada a 0–100%. En progreso, necesario usa `#8A00F2`, juntado `#FFFFFF` y faltante `#F20000`; al completar, todos cambian a verde `#00E676`.
+- En escritorio, métricas y barra ocupan la columna izquierda y cantidad/«Agregar» la derecha; en móvil se apilan.
+- Se conservan los borrados confirmados y transaccionales anteriores. No hay migración ni cambios de formato de respaldo.
+- `npm run typecheck` y `npm run build` pasan. No se verificó manualmente la interacción en navegador ni con IndexedDB real.
 
