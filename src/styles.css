@@ -190,6 +190,7 @@ footer { width: min(100%, 1120px); margin: 0 auto; color: #89839e; font-size: .7
 @media (max-width: 620px) { .rawg-search-controls, .rawg-result { flex-direction: column; } .rawg-search-controls .primary-button, .rawg-result .secondary-button { width: 100%; } }
 .game-cover { position: relative; height: 190px; overflow: hidden; border-radius: 14px; background: linear-gradient(135deg, #312e55, #18162d); }
 .game-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.game-cover img.image-load-failed, .workspace-cover-image.image-load-failed, .rawg-picker-cover img.image-load-failed, .rawg-selected-cover img.image-load-failed { display: none; }
 .cover-fallback { display: grid; width: 100%; height: 100%; place-items: center; color: var(--muted); font-size: .9rem; }
 .game-metadata { margin-top: 10px; }
 .game-metadata p { margin: 6px 0; line-height: 1.55; overflow-wrap: anywhere; }
@@ -202,7 +203,8 @@ footer { width: min(100%, 1120px); margin: 0 auto; color: #89839e; font-size: .7
 .rawg-picker-results { display: grid; gap: 11px; max-height: 390px; overflow: auto; margin: 16px 0; padding: 0 4px 0 0; list-style: none; }
 .rawg-picker-result { display: grid; grid-template-columns: 96px 1fr auto; align-items: center; gap: 13px; padding: 11px; border: 1px solid var(--line); border-radius: 15px; background: #ffffff07; }
 .rawg-picker-cover, .rawg-selected-cover { position: relative; display: grid; min-height: 72px; place-items: center; overflow: hidden; border-radius: 10px; background: linear-gradient(135deg, #312e55, #18162d); color: var(--muted); font-size: .75rem; text-align: center; }
-.rawg-picker-cover img, .rawg-selected-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.rawg-picker-cover > span, .rawg-selected-cover > span { z-index: 0; }
+.rawg-picker-cover img, .rawg-selected-cover img { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .rawg-picker-info h3, .rawg-selected-info h3 { margin: 0 0 5px; font-size: 1rem; }
 .rawg-picker-info p, .rawg-selected-info p { margin: 4px 0; color: var(--muted); font-size: .82rem; line-height: 1.45; }
 .rawg-picker-result .secondary-button { min-height: 40px; padding: 0 12px; font-size: .82rem; }

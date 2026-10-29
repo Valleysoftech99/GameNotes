@@ -59,8 +59,30 @@ function nativePwaPlugin(): Plugin {
   }
 }
 
+function developmentCspPlugin(): Plugin {
+  const refreshPreamble = react.preambleCode.replace('__BASE__', '/')
+  const refreshHash = createHash('sha256').update(refreshPreamble).digest('base64')
+  return {
+    name: 'notegame-dev-csp-hmr',
+    apply: 'serve',
+    transformIndexHtml(html) {
+      return html.replace(
+        "script-src 'self'",
+        `script-src 'self' 'sha256-${refreshHash}'`,
+      ).replace(
+        "style-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+      ).replace(
+        "connect-src 'self' https://api.rawg.io",
+        "connect-src 'self' https://api.rawg.io ws://localhost:5173 ws://127.0.0.1:5173",
+      )
+    },
+  }
+}
+
 export default defineConfig({
   base,
-  plugins: [react(), nativePwaPlugin()],
+  plugins: [react(), nativePwaPlugin(), developmentCspPlugin()],
+  server: { port: 5173, strictPort: true },
 })
 

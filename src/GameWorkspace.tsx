@@ -101,7 +101,7 @@ export default function GameWorkspace({ game, avatar = '🙂', onBack }: Props) 
     <div className="workspace-profile"><span aria-hidden="true">{avatar}</span><span>Tu perfil</span></div>
     <div className="workspace-cover">
       <div className="workspace-cover-fallback" aria-hidden="true">✧</div>
-      {game.coverUrl && <img className="workspace-cover-image" src={game.coverUrl} alt="" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.style.display = 'none' }} />}
+      {game.coverUrl && <img className="workspace-cover-image" src={game.coverUrl} alt="" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.classList.add('image-load-failed') }} />}
       <div className="workspace-cover-overlay"><p className="eyebrow">ESPACIO DEL JUEGO</p><h1>{game.name}</h1><p>Objetivos y materiales para tu partida.</p>{game.rawgId && <p className="rawg-attribution">Datos e imágenes: <a href="https://rawg.io" target="_blank" rel="noreferrer">RAWG</a>.</p>}</div>
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}

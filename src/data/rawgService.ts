@@ -19,6 +19,7 @@ const detailsSchema = rawgGameSchema
 
 export type RawgGame = z.infer<typeof rawgGameSchema>
 const API_ROOT = 'https://api.rawg.io/api'
+const MAX_RESPONSE_BYTES = 1_000_000
 const MAX_RESPONSE_CHARS = 1_000_000
 const inFlight = new Map<string, Promise<RawgSearchResult[]>>()
 
@@ -61,7 +62,8 @@ async function request<T>(url: URL, schema: z.ZodType<T>, signal?: AbortSignal):
   const controller = new AbortController()
   const timeout = window.setTimeout(() => controller.abort(), 8000)
   const abortFromCaller = () => controller.abort()
-  signal?.addEventListener('abort', abortFromCaller, { once: true })
+  if (signal?.aborted) controller.abort()
+  else signal?.addEventListener('abort', abortFromCaller, { once: true })
   try {
     const response = await fetch(url, {
       method: 'GET', cache: 'no-store', signal: controller.signal,
@@ -70,7 +72,35 @@ async function request<T>(url: URL, schema: z.ZodType<T>, signal?: AbortSignal):
     if (response.status === 401 || response.status === 403) throw new RawgServiceError('invalid-key')
     if (response.status === 429) throw new RawgServiceError('quota')
     if (!response.ok) throw new RawgServiceError('http')
-    const text = await response.text()
+    const contentLength = response.headers.get('content-length')?.trim()
+    if (contentLength && /^\d+$/u.test(contentLength) && BigInt(contentLength) > BigInt(MAX_RESPONSE_BYTES)) {
+      void response.body?.cancel().catch(() => undefined)
+      throw new RawgServiceError('invalid-response')
+    }
+    const reader = response.body?.getReader()
+    if (!reader) throw new RawgServiceError('invalid-response')
+    const chunks: Uint8Array[] = []
+    let totalBytes = 0
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        totalBytes += value.byteLength
+        if (totalBytes > MAX_RESPONSE_BYTES) {
+          try { await reader.cancel() } catch { /* The stream is rejected even if cancellation cannot finish. */ }
+          throw new RawgServiceError('invalid-response')
+        }
+        chunks.push(value)
+      }
+    } finally {
+      reader.releaseLock()
+    }
+    const bodyBytes = new Uint8Array(totalBytes)
+    let offset = 0
+    for (const chunk of chunks) { bodyBytes.set(chunk, offset); offset += chunk.byteLength }
+    let text: string
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(bodyBytes) }
+    catch { throw new RawgServiceError('invalid-response') }
     if (text.length > MAX_RESPONSE_CHARS) throw new RawgServiceError('invalid-response')
     let payload: unknown
     try { payload = JSON.parse(text) } catch { throw new RawgServiceError('invalid-response') }

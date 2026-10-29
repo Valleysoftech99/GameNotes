@@ -1,0 +1,16 @@
+﻿version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: America/Argentina/Buenos_Aires
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:15"
+      timezone: America/Argentina/Buenos_Aires
